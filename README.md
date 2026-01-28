@@ -23,12 +23,14 @@ This project orchestrates the scraping of combolists from cracked.sh MyBB forum.
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/your-username/crackedsh_orchestrator.git
+    git clone https://git.pizzav.xyz/PizzaV/crackedsh-recon-suite.git
     cd crackedsh_orchestrator
     ```
 2.  Install Python dependencies:
     ```bash
-    pip install -r requirements.txt # (Assuming a requirements.txt exists or creating one)
+    pip install -r requirements.txt
+    # If requirements.txt does not exist, you might need to create one or install dependencies individually:
+    # pip install scrapy camoufox # (example for core dependencies)
     ```
 3.  Ensure Camoufox is set up and accessible. This might involve Docker for a headless browser environment.
 
@@ -53,7 +55,7 @@ This will:
         - `spiders/mybb_spider.py`: The Scrapy spider definition.
         - `pipelines.py`: Processes scraped items, sorts them, and saves results.
         - `settings.py`: Scrapy project settings.
-    - `mybb_scraper_scrapy.py`: An alternative direct entry point for running the Scrapy spider (redundant with `run_scraper.py` within the Scrapy project, and `main_orchestrator.py` is the primary orchestrator).
+    - `mybb_scraper_scrapy.py`: An alternative entry point for running the Scrapy spider, superseded by `main_orchestrator.py`.
 - `scrapers/`: Contains general scraping utility scripts.
     - `forum_scraper.py`: Implements the `Camoufox`-based logic to reveal hidden content and extract links from forum threads.
 - `sample_urls.txt`: A sample file containing URLs to be processed.
@@ -70,8 +72,7 @@ This will:
 
 ## Contributing
 
-(Placeholder: Guidelines for contributing to the project)
+
 
 ## License
 
-(Placeholder: License information)
