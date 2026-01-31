@@ -12,6 +12,7 @@ from camoufox import Camoufox
 
 # Constants for rate limiting and configuration
 RATE_LIMIT_FILE = "post_state.json"
+REPLIED_POSTS_FILE = "replied_posts.json"
 MAX_POSTS_PER_DAY = 25
 PROFILE_DIR = "profile"
 
@@ -64,6 +65,19 @@ def reveal_hidden_content_and_extract_links(
                 )
                 post_state = {"last_post_date": None, "post_count": 0}
 
+    # Load replied posts tracking
+    replied_posts = {}
+    if Path(REPLIED_POSTS_FILE).exists():
+        with open(REPLIED_POSTS_FILE, "r", encoding="utf-8") as f:
+            try:
+                replied_posts = json.load(f)
+            except json.JSONDecodeError:
+                print(
+                    f"Warning: Could not decode {REPLIED_POSTS_FILE}. "
+                    "Starting with fresh tracking."
+                )
+                replied_posts = {}
+
     today_str = datetime.now().strftime("%Y-%m-%d")
 
     if post_state["last_post_date"] != today_str:
@@ -86,6 +100,11 @@ def reveal_hidden_content_and_extract_links(
                 continue
 
             print(f"Processing URL: {url}")
+
+            # Skip if already replied to this post
+            if url in replied_posts:
+                print(f"Already replied to {url}. Skipping.")
+                continue
 
             if post_state["post_count"] >= MAX_POSTS_PER_DAY:
                 print(
@@ -119,8 +138,17 @@ def reveal_hidden_content_and_extract_links(
                     f"Post count for today: {post_state['post_count']}/{MAX_POSTS_PER_DAY}"
                 )
 
+                # Mark this post as replied to
+                replied_posts[url] = {
+                    "replied_at": datetime.now().isoformat(),
+                    "title": "Processing",
+                }
+
                 with open(RATE_LIMIT_FILE, "w") as f:
                     json.dump(post_state, f)
+
+                with open(REPLIED_POSTS_FILE, "w") as f:
+                    json.dump(replied_posts, f, indent=2)
 
                 # Wait for the page to update after posting
                 time.sleep(10)
@@ -132,6 +160,11 @@ def reveal_hidden_content_and_extract_links(
                 time.sleep(2)
 
                 title = page.locator("div.hidden-content-title").inner_text()
+
+                if url in replied_posts:
+                    replied_posts[url]["title"] = title
+                    with open(REPLIED_POSTS_FILE, "w") as f:
+                        json.dump(replied_posts, f, indent=2)
 
                 hidden_content = page.locator("div.hidden-content-body")
                 link_elements = hidden_content.locator("a.mycode_url")
