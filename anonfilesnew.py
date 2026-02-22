@@ -7,7 +7,7 @@ from camoufox.sync_api import Camoufox
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 PROFILE_DIR = "/tmp/camoufox_profile"
-URLS_FILE = "/tmp/urls.txt"
+URLS_FILE = "/tmp/anonfiles/crackedsh-recon-suite/anonfiles_urls.txt"
 
 
 def click_and_extract_download_link(page, url, timeout=20000):
@@ -82,6 +82,41 @@ def process_all_urls():
         humanize=True,
         persistent_context=True,
         user_data_dir=PROFILE_DIR,
+        block_images=True,  # Disable images for faster loading
+        block_webgl=True,   # Disable WebGL for better performance
+        firefox_user_prefs={
+            # Images and media
+            "permissions.default.image": 2,  # Block images completely
+            "dom.ipc.processCount": 1,  # Single content process
+            
+            # Media and autoplay
+            "media.autoplay.default": 5,  # Block all autoplay
+            "media.autoplay.blocking_policy": 2,
+            "media.autoplay.block-webaudio": True,
+            
+            # Animations and effects
+            "toolkit.cosmeticAnimations.enabled": False,  # Disable CSS animations
+            "ui.prefersReducedMotion": 1,  # Reduced motion
+            
+            # Network optimizations
+            "network.http.speculative-parallel-limit": 0,  # Disable speculative connections
+            "network.dns.disablePrefetch": True,  # Disable DNS prefetch
+            "network.prefetch-next": False,  # Disable link prefetching
+            
+            # Scripts and notifications
+            "dom.webnotifications.enabled": False,  # Disable notifications
+            "dom.push.enabled": False,  # Disable push notifications
+            
+            # Hardware acceleration
+            "media.hardware-video-decoding.enabled": False,  # Disable hardware video decoding
+            "layers.acceleration.disabled": True,  # Disable hardware acceleration
+            
+            # Other optimizations
+            "browser.sessionstore.max_tabs_undo": 0,  # Disable tab restore
+            "browser.sessionstore.max_windows_undo": 0,  # Disable window restore
+            "geo.enabled": False,  # Disable geolocation
+            "beacon.enabled": False,  # Disable beacon API
+        },
     ) as browser:
         # Reuse existing open pages if any (avoid opening a second blank)
         pages = browser.pages

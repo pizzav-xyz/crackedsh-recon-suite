@@ -4,7 +4,7 @@ import os
 
 # Combined regex for multiple file hosting sites
 FILE_HOST_REGEX = re.compile(
-    r"https?://(?:www\.)?(?:gofile\.io/(?:d|id)|limewire\.com/d|mega\.nz/file|upload\.ee/files)/[A-Za-z0-9_\-#]+"
+    r"https?://(?:www\.)?(?:gofile\.io/(?:d|id)/[A-Za-z0-9_-]+|limewire\.com/d/[A-Za-z0-9_-]+|mega\.nz/file/[A-Za-z0-9_#!-]+|upload\.ee/files/[A-Za-z0-9_.-]+|anonfilesnew\.com/(?:s/[A-Za-z0-9_]+|[A-Za-z0-9_]+/[A-Za-z0-9_.-]+))"
 )
 
 def extract_filehost_urls(page, url: str) -> list[str]:
@@ -44,7 +44,7 @@ def process_links_file(file_path: str):
         page = browser.new_page()
         for line in lines:
             # Only scrape if it's a supported paste or text page
-            if any(x in line for x in ["pasted.pw", "upload.ee", "text"]):
+            if any(x in line for x in ["pasted.pw", "upload.ee", "text", "anonfilesnew.com"]):
                 print(f"[Camoufox] Processing page: {line}")
                 urls = extract_filehost_urls(page, line)
                 updated.extend(urls if urls else [line])
@@ -60,4 +60,4 @@ def process_links_file(file_path: str):
 
 
 if __name__ == "__main__":
-    process_links_file("crackedsh_extracted_links.txt")
+    process_links_file("anonfiles_urls.txt")
