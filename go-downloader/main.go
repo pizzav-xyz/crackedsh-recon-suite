@@ -2,10 +2,10 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"net/http"
 	"os"
+	"os/exec"
 	"regexp"
+	"sync"
 )
 
 func main() {
@@ -15,7 +15,6 @@ func main() {
 	}
 
 	inputFile := os.Args[1]
-	counter := 1
 
 	// Read the input file
 	content, err := os.ReadFile(inputFile)
@@ -28,43 +27,51 @@ func main() {
 	re := regexp.MustCompile(`'download_url':\s*'([^']+)`)
 	matches := re.FindAllStringSubmatch(string(content), -1)
 
+	// Limit concurrent downloads with a semaphore (aria2 handles its own threading internally)
+	const maxConcurrentDownloads = 5 // Lower number since aria2 already uses multiple connections
+	semaphore := make(chan struct{}, maxConcurrentDownloads)
+
+	var wg sync.WaitGroup
+	counter := 1
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			url := match[1]
 
 			// Skip if URL is "None"
 			if url != "None" {
-				fmt.Printf("Downloading %s -> %d.txt\n", url, counter)
+				wg.Add(1)
+				go func(u string, c int) {
+					defer wg.Done()
+					semaphore <- struct{}{}        // Acquire
+					defer func() { <-semaphore }() // Release
 
-				err := downloadFile(url, fmt.Sprintf("%d.txt", counter))
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error downloading %s: %v\n", url, err)
-				}
+					filename := fmt.Sprintf("%d.txt", c)
+					fmt.Printf("Downloading %s -> %s\n", u, filename)
 
+					err := downloadWithAria2(u, filename)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Error downloading %s: %v\n", u, err)
+					}
+				}(url, counter)
 				counter++
 			}
 		}
 	}
+
+	// Wait for all downloads to complete
+	wg.Wait()
+	fmt.Println("All downloads completed.")
 }
 
-func downloadFile(url, filename string) error {
-	resp, err := http.Get(url)
+func downloadWithAria2(url, filename string) error {
+	// Use aria2c with 4 connections per file for better performance
+	cmd := exec.Command("aria2c", "--max-connection-per-server=4", "--split=4", "--continue=true", "-o", filename, url)
+
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Check for successful response
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+		return fmt.Errorf("aria2c failed: %v, output: %s", err, string(output))
 	}
 
-	out, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	return err
+	return nil
 }
