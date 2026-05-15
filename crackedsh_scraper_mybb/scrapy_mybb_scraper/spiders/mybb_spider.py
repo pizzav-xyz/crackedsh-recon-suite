@@ -131,8 +131,7 @@ class MyBBScraperUtils:
                 if time_unit in ["second", "minute", "hour"]:
                     return True
                 elif time_unit == "day":
-                    # Only if it's 0 days ago or less than 1 day (meaning today)
-                    return time_num < 1
+                    return time_num <= 1
                 else:
                     # Days, weeks, months, years ago are not today
                     return False
