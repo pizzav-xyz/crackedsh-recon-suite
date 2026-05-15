@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Scrapy-based MyBB Forum Scraper for cracked.sh.
-
-Reimplementation of the original unified scraper using Scrapy framework.
-"""
+"""Scrapy-based MyBB Forum Scraper."""
 
 import os
 import sys
@@ -13,10 +10,13 @@ from scrapy.crawler import CrawlerProcess
 # Add current directory to Python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Import config
+from scrapy_mybb_scraper import config
+
 
 def run_scraper():
     """Run the MyBB scraper using Scrapy."""
-    print("Starting MyBB Forum Scraper for cracked.sh using Scrapy...")
+    print(f"Starting MyBB Forum Scraper for {config.DOMAIN} using Scrapy...")
     print("Finding top 10 combolists from today with highest numbers in titles...")
 
     # Create a CrawlerProcess with custom settings

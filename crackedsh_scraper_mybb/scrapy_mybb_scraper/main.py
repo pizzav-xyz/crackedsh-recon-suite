@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unified MyBB Forum Scraper for cracked.sh using Scrapy.
+"""Unified MyBB Forum Scraper for cracked.ax using Scrapy.
 
 Reimplementation of the original unified scraper using Scrapy framework.
 """
@@ -19,7 +19,7 @@ def run_scraper(max_pages=30, top_n=10):
         max_pages (int): Maximum number of pages to scrape. Defaults to 30.
         top_n (int): Number of top combolists to return. Defaults to 10.
     """
-    print("Starting MyBB Forum Scraper for cracked.sh using Scrapy...")
+    print("Starting MyBB Forum Scraper for cracked.ax using Scrapy...")
     print(
         f"Finding top {top_n} combolists from today with highest numbers in titles..."
     )
@@ -76,7 +76,7 @@ def print_results():
 def main():
     """Main entry point for the scraper."""
     parser = argparse.ArgumentParser(
-        description="Scrapy-based MyBB Forum Scraper for cracked.sh"
+        description="Scrapy-based MyBB Forum Scraper for cracked.ax"
     )
     parser.add_argument(
         "--max-pages",

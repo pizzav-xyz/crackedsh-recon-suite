@@ -1,3 +1,5 @@
+import json
+import os
 import re
 from urllib.parse import urljoin
 
@@ -6,6 +8,7 @@ import scrapy
 
 # Local imports
 from scrapy_mybb_scraper.items import ThreadItem
+from scrapy_mybb_scraper import config
 
 
 class MyBBScraperUtils:
@@ -22,7 +25,7 @@ class MyBBScraperUtils:
             return 0
 
         # Look for patterns like "502.7k", "14.6k", "11.2M", "910K", etc.
-        multiplier_pattern = r"(\d+(?:\.\d+)?)([kmgtbpKMGTBP])(?!\w)"
+        multiplier_pattern = r"(\d+(?:\.\d+)?)\s*([kmgtbpKMGTBP])(?!\w)"
         matches = re.findall(multiplier_pattern, str(size_str))
 
         if matches:
@@ -42,7 +45,22 @@ class MyBBScraperUtils:
 
             return int(num_part * multipliers.get(mult_part, 1))
 
-        # If no multiplier patterns found, just extract the largest standalone number
+        # If no multiplier patterns found, check for European-style thousand separators
+        # (dots used as thousand separators: e.g., "1.620.829" = 1,620,829)
+        european_pattern = r"\b(\d{1,3}(?:\.\d{3})+)\b"
+        european_matches = re.findall(european_pattern, str(size_str))
+        if european_matches:
+            valid_numbers = []
+            for num_str in european_matches:
+                try:
+                    num_val = float(num_str.replace(".", ""))
+                    valid_numbers.append(num_val)
+                except ValueError:
+                    continue
+            if valid_numbers:
+                return int(max(valid_numbers))
+
+        # If no European-style numbers found, just extract the largest standalone number
         # Use a pattern that captures numbers but excludes those followed by letters that could be multipliers
         numbers = re.findall(r"\b\d+(?:\.\d+)?\b", str(size_str))
         if not numbers:
@@ -161,32 +179,80 @@ class MybbSpider(scrapy.Spider):
     """Scrapy spider for MyBB forum threads."""
 
     name = "mybb"
-    allowed_domains = ["cracked.sh"]
+    allowed_domains = [config.DOMAIN]
     # Use the URL sorted by thread creation date (newest first) to find most recent threads
-    start_urls = ["https://cracked.sh/Forum-Combolists--297?sortby=started&order=desc"]
+    start_urls = [
+        f"https://{config.DOMAIN}/Forum-Combolists--{config.FORUM_ID}?sortby={config.SORT_BY}&order={config.ORDER}&prefix={config.PREFIX_ID}"
+    ]
 
-    custom_settings = {
-        "FEEDS": {
-            "top_combolists_today.json": {
-                "format": "json",
-                "overwrite": True,
-            }
-        }
-    }
-
-    def __init__(self, max_pages=30, top_n=10, *args, **kwargs):
+    def __init__(
+        self,
+        max_pages=30,
+        top_n=10,
+        txt_filename=None,
+        json_filename=None,
+        *args,
+        **kwargs,
+    ):
         """Initialize spider with parameters.
 
         Args:
             max_pages (int): Maximum number of pages to scrape.
             top_n (int): Number of top results to return.
+            txt_filename (str): Filename for text output.
+            json_filename (str): Filename for JSON output.
         """
         super(MybbSpider, self).__init__(*args, **kwargs)
+
+        # Set up custom settings with dynamic filenames
+        if json_filename:
+            self.custom_settings = {
+                "FEEDS": {
+                    json_filename: {
+                        "format": "json",
+                        "overwrite": True,
+                    }
+                }
+            }
+        else:
+            self.custom_settings = {
+                "FEEDS": {
+                    "top_combolists_today.json": {
+                        "format": "json",
+                        "overwrite": True,
+                    }
+                }
+            }
+
         self.max_pages = int(max_pages)
         self.top_n = int(top_n)
+        self.txt_filename = txt_filename or "top_combolists_today.txt"
+        self.json_filename = json_filename or "top_combolists_today.json"
         self.page_count = 1
         self.all_threads = []
         self.utils = MyBBScraperUtils()
+
+        # Initialize set to track processed URLs
+        self.processed_urls_file = "processed_urls.json"
+        self.processed_urls = self.load_processed_urls()
+
+    def load_processed_urls(self):
+        """Load previously processed URLs from file."""
+        if os.path.exists(self.processed_urls_file):
+            try:
+                with open(self.processed_urls_file, "r", encoding="utf-8") as f:
+                    return set(json.load(f))
+            except (json.JSONDecodeError, IOError):
+                return set()
+        return set()
+
+    def save_processed_urls(self):
+        """Save processed URLs to file."""
+        try:
+            with open(self.processed_urls_file, "w", encoding="utf-8") as f:
+                json.dump(list(self.processed_urls), f, ensure_ascii=False, indent=2)
+        except IOError as e:
+            self.logger.error(f"Failed to save processed URLs: {e}")
 
     def parse(self, response):
         """Parse the forum page and extract thread information."""
@@ -202,7 +268,7 @@ class MybbSpider(scrapy.Spider):
         has_recent_threads_on_page = False
 
         for row_idx, row in enumerate(thread_rows):
-            # Find thread title links using the actual HTML structure observed from cracked.sh
+            # Find thread title links using the actual HTML structure observed from cracked.ax
             # Each thread row has a d-flex container with the link inside
             flex_containers = row.css("div.d-flex.align-items-center")
 
@@ -219,11 +285,20 @@ class MybbSpider(scrapy.Spider):
                     if not title or len(title) <= 2 and title.isdigit():
                         continue
 
+                    # Create full URL
+                    full_url = urljoin(f"https://{config.DOMAIN}/", href)
+
+                    # Skip if URL was already processed
+                    if full_url in self.processed_urls:
+                        self.logger.debug(f"Skipping already processed URL: {full_url}")
+                        continue
+
                     # Extract number from title - enhanced to handle formats like [1.256.800], 328.646, 502.7k, etc.
                     # Use the normalize_size_string function which handles multipliers and complex formats
                     final_number = self.utils.normalize_size_string(title)
 
-                    if final_number > 0:
+                    # Yield items with numbers OR without numbers (to get entries with no number in title)
+                    if final_number >= 0:
                         # Find thread creation date (not last post date) in the same row
                         date_text = ""
 
@@ -283,10 +358,13 @@ class MybbSpider(scrapy.Spider):
                                 .replace("\t", " ")
                             )
                             item["title"] = sanitized_title
-                            item["url"] = urljoin("https://cracked.sh/", href)
+                            item["url"] = full_url
                             item["number"] = final_number
                             item["normalized_size"] = final_number
                             item["date_text"] = sanitized_date_text
+
+                            # Add URL to processed set
+                            self.processed_urls.add(full_url)
 
                             yield item
                         else:
@@ -349,3 +427,10 @@ class MybbSpider(scrapy.Spider):
             self.logger.debug("No more pages found")
         else:
             self.logger.debug("Max pages reached")
+
+    def closed(self, reason):
+        """Called when spider is closed. Save processed URLs to file."""
+        self.save_processed_urls()
+        self.logger.info(
+            f"Spider closed: {reason}. Processed URLs saved to {self.processed_urls_file}."
+        )

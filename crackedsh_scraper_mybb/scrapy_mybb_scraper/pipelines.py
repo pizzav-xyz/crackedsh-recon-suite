@@ -5,6 +5,7 @@ See: https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 """
 
 # Third-party imports
+import json
 import scrapy
 
 
@@ -36,24 +37,41 @@ class MybbPipeline:
         """Called when spider is closed.
 
         Sorts all collected items by number (highest first) and saves top N to file.
+        Also saves filtered entries (number < 100k or no number) to a separate JSON.
         """
         # Sort all collected items by number (highest first) and take top N
         top_items = sorted(self.items, key=lambda x: x.get("number", 0), reverse=True)[
             : self.spider.top_n
         ]
 
+        # Use the filename from the spider if available, otherwise default
+        txt_filename = getattr(self.spider, "txt_filename", "top_combolists_today.txt")
+
         # Save top items to a file
-        with open("top_combolists_today.txt", "w", encoding="utf-8") as f:
+        with open(txt_filename, "w", encoding="utf-8") as f:
             f.write(f"# Top {self.spider.top_n} Combolists from Today\n\n")
             for i, item in enumerate(top_items, 1):
                 f.write(f"{i}. {item['title']}\n")
                 f.write(f"   Link: {item['url']}\n\n")
 
+        # Save filtered entries (number < 100k or no number) to JSON
+        filtered_items = [
+            item
+            for item in self.items
+            if item.get("number") is None or item.get("number", 0) < 100000
+        ]
+        filtered_json_filename = "filtered_under_100k.json"
+        with open(filtered_json_filename, "w", encoding="utf-8") as f:
+            json.dump(filtered_items, f, indent=2, ensure_ascii=False)
+
         print(
             f"\nFound {len(self.items)} threads from today with numbers across "
             f"{self.spider.page_count} pages"
         )
-        print(f"Returning top {len(top_items)} combolists")
+        print(f"Returning top {len(top_items)} combolists to {txt_filename}")
+        print(
+            f"Filtered {len(filtered_items)} entries (number < 100k or no number) to {filtered_json_filename}"
+        )
 
     def process_item(self, item, spider):
         """Process each item and add to collection."""
